@@ -1,38 +1,20 @@
 import numpy as np
-import matplotlib.pyplot as plt
 import numba
 import matplotlib.pyplot as plt
+import matplotlib.widgets as widgets
 from matplotlib.animation import FuncAnimation
 
-
+ 
 N = 100
-beta = 10000
-j=-1
+beta = 1
+j=1
 gridShape = (N,N)
 
 spins = np.random.choice([-1,1], gridShape)
 
-@numba.jit()
-def spinFlip(spins,x,y):
-    spinsInput = spins.copy()
-    spinCurrent = spinsInput[x,y]
-    newSpin = -spinCurrent
-
-    currentEnergy = getEnergy(x,y,spinsInput, spinCurrent)
-    flipEnergy = getEnergy(x,y,spinsInput, newSpin)
-    if flipEnergy < currentEnergy:
-        spins[x,y] = newSpin
-    else:
-        deltaEnergy = np.abs(currentEnergy - flipEnergy)
-        thermalFlipProb = np.exp(-beta*deltaEnergy)
-        if thermalFlipProb > np.random.uniform():
-            spins[x,y] = newSpin
-        else:
-            pass
-
 @numba.njit(nogil=True)
-def getEnergy(x,y,spins, spinCompare):
-    spinCompare = spinCompare * j
+def getEnergy(x,y,spins, spinCompare,j):
+    spinCompare = - spinCompare * j
     # Boundary conditions
     #     # Central case
     if 0 < x < N-1 and 0 < y < N-1:
@@ -63,28 +45,92 @@ def getEnergy(x,y,spins, spinCompare):
     return sum
     
 
+@numba.njit(nogil=True)
+def spinFlip(spins,x,y,beta,j):
+    spinCurrent = spins[x,y]
+    newSpin = -spinCurrent
 
-fig = plt.figure(figsize=(10,6))
-ax = fig.add_subplot(1,1,1)
+    currentEnergy = getEnergy(x,y,spins, spinCurrent,j)
+    flipEnergy = getEnergy(x,y,spins, newSpin,j)
+    if flipEnergy < currentEnergy:
+        spins[x,y] = newSpin
+    else:
+        deltaEnergy = np.abs(currentEnergy - flipEnergy)
+        thermalFlipProb = np.exp(-beta*deltaEnergy)
+        if thermalFlipProb > np.random.uniform():
+            spins[x,y] = newSpin
+        else:
+            pass
 
+
+# ============================================
+#   Axes and figure
+# ============================================
+
+fig = plt.figure(figsize=(12,8))
+ax = fig.add_subplot(1,2,1)
+ax2 = fig.add_subplot(1,2,2)
+
+ax2.set_ylabel('Avg Spin')
+ax2.set_xlabel('Steps taken (millions)')
+
+ax.set_title('Spin Lattice')
+ax2.set_title('Magnetisation Data')
+
+# Axes [Start position from left, start position from bottom, width, height]
+# Axes [left, bottom, width, height]
+
+stepsPerFrame = 200
+
+axBeta = fig.add_axes([0.1,0.16,0.35,0.03])
+axJ = fig.add_axes([0.1,0.12,0.35,0.03])
+axSpeed = fig.add_axes([0.1,0.08,0.35,0.03])
+betaSlider = widgets.Slider(axBeta, label='Beta Temp', valmin=0.01, valmax=5.00, valstep=0.01, valinit=beta)
+jSlider = widgets.Slider(axJ, label='J val', valmin=-2.0, valmax=2.0, valstep=0.5, valinit=j)
+speedSlider = widgets.Slider(axSpeed, label='Steps Per frame', valmin=1.0, valmax=5000, valstep=100, valinit=stepsPerFrame)
+
+# Slider updater
+
+def sliderUpdate(val):
+    global beta, j, stepsPerFrame
+    beta = betaSlider.val
+    j = jSlider.val
+    stepsPerFrame = int(speedSlider.val)
+
+betaSlider.on_changed(sliderUpdate)
+jSlider.on_changed(sliderUpdate)
+speedSlider.on_changed(sliderUpdate)
 # ============================================
 #   Animation
 # ============================================
 
-stepsPerFrame = 2000
+
+avgSpin = np.array([0])
+frameCount = np.array([0])
 
 def frameStep(stepCount):
+    global avgSpin, frameCount
     for i in range(0,stepCount):
-        x,y = np.random.randint(N, size=(2, stepsPerFrame))
-        spinFlip(spins,x[i],y[i])
+        x = np.random.randint(0,N)
+        y = np.random.randint(0,N)
+        spinFlip(spins,x,y, beta,j)
+    spinTot = np.sum(spins)
+    avgSpin = np.append(avgSpin[:], (spinTot/(N**2)))
+    frameCount = np.append(frameCount[:], (frameCount[-1] + stepsPerFrame))
 
-spinData = ax.imshow(spins)
+spinData = ax.imshow(spins, cmap='bwr', label='Data')
+magData, = ax2.plot(frameCount,avgSpin)
 def animate(frame):
     frameStep(stepsPerFrame)
     spinData.set_data(spins)
-    return [spinData]
+    magData.set_data(frameCount*1e-6,avgSpin)
+    ax2.relim()
+    ax2.autoscale_view()
+    return [spinData,magData]
 
-animation = FuncAnimation(fig,animate, interval=1, blit=True)
+plt.legend()
+
+animation = FuncAnimation(fig,animate, interval=1, blit=False, save_count=60)
 
 
 
