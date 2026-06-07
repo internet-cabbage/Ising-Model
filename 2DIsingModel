@@ -3,6 +3,7 @@ import numba
 import matplotlib.pyplot as plt
 import matplotlib.widgets as widgets
 from matplotlib.animation import FuncAnimation
+import random
 
  
 
@@ -15,11 +16,17 @@ from matplotlib.animation import FuncAnimation
 
 initParams = {'beta':1,
               'N':128,
-              'j':1}
+              'j':1,
+              'Generator Method': 'Random Noise',
+              'Steps Per Frame': 1024}
 
 N = initParams['N']
 beta = initParams['beta']
 j = initParams['j']
+generatorMethod = initParams['Generator Method']
+
+stepsPerFrame = initParams['Steps Per Frame']
+stepsPerRecording = initParams['Steps Per Frame']
 
 
 gridShape = (N,N)
@@ -27,10 +34,29 @@ sumMethod = 'Naive'
 
 # Arrays storing the data for the graph
 
-avgSpin = np.array([0])
-frameCount = np.array([0])
+avgSpin = np.array([0.0], dtype=np.float32)
+frameCount = np.array([0], dtype=np.int32)
 
-spins = np.random.choice([-1,1], gridShape)
+
+# ============================================
+# Generator Function
+# ============================================
+
+def generate(method,N):
+    spins = np.zeros((N,N), dtype=np.int8)
+    if method == 'Random Noise':
+        spins = np.random.choice([-1,1], (N,N))
+    elif method == 'Uniform':
+        val = np.random.choice([-1,1])
+        spins[::] = val
+    elif method == 'Even Split':
+        spins[:,:(N//2)], spins[:,(N//2):] = 1, -1
+    return spins
+
+spins = generate(generatorMethod,N)
+
+
+
 
 @numba.njit(nogil=True)
 def getEnergy(x,y,spins, spinCompare,j,N):
@@ -61,11 +87,12 @@ def getEnergy(x,y,spins, spinCompare,j,N):
         sum = spinCompare * (spins[0,N-1] + spins[1, N-1])
     elif x == N-1 and y == N-1: # Bottom right
         sum = spinCompare * (spins[N-2,N-1] + spins[N-1, N-2])
-
     return sum
+
 
 @numba.njit(nogil=True)
 def spinFlip(spins,x,y,beta,j,N):
+
     spinCurrent = spins[x,y]
     newSpin = -spinCurrent
 
@@ -75,7 +102,7 @@ def spinFlip(spins,x,y,beta,j,N):
         spins[x,y] = newSpin
     else:
         deltaEnergy = np.abs(currentEnergy - flipEnergy)
-        thermalFlipProb = np.exp(-beta*deltaEnergy)
+        thermalFlipProb = np.exp(-beta * deltaEnergy)
         if thermalFlipProb > np.random.uniform():
             spins[x,y] = newSpin
         else:
@@ -128,10 +155,10 @@ ax2.set_xlabel('Steps taken (millions)')
 ax.set_title('Spin Lattice')
 ax2.set_title('Magnetisation Data')
 
+ax2.axhline(0,color='black',ls='--',alpha=0.6)
+
 # Axes [Start position from left, start position from bottom, width, height]
 # Axes [left, bottom, width, height]
-
-stepsPerFrame = 1024
 
 # ============================================
 #  Sliders
@@ -143,7 +170,7 @@ axJ = fig.add_axes([0.1,0.17,0.35,0.03])
 axSpeed = fig.add_axes([0.1,0.11,0.35,0.03])
 betaSlider = widgets.Slider(axBeta, label='Beta Temp', valmin=0.01, valmax=5.00, valstep=0.01, valinit=beta)
 jSlider = widgets.Slider(axJ, label='J val', valmin=-2.0, valmax=2.0, valstep=0.1, valinit=j)
-speedSlider = widgets.Slider(axSpeed, label='Steps Per frame', valmin=1.0, valmax=15.0, valstep=1.0, valinit=np.log2(stepsPerFrame))
+speedSlider = widgets.Slider(axSpeed, label='Steps Per frame', valmin=1.0, valmax=20.0, valstep=1.0, valinit=np.log2(stepsPerFrame))
 speedSlider.valtext.set_text(str(stepsPerFrame))
 
 # ============================================
@@ -162,11 +189,14 @@ for slider in [betaSlider, jSlider, speedSlider]:
 #   Buttons
 # ============================================
 
-axSumMethod = fig.add_axes([0.55,0.08,0.20,0.15])
+axSumMethod = fig.add_axes([0.55,0.08,0.13,0.15])
 sumButton = widgets.RadioButtons(axSumMethod, ('Naive', 'Wrap-Around'))
-axSize = fig.add_axes([0.75,0.08,0.2,0.15])
+axSize = fig.add_axes([0.68,0.08,0.13,0.15])
 sizeButton = widgets.RadioButtons(axSize, (32,64,128,256,512))
 sizeButton.set_active(2)
+axInitSpins = fig.add_axes([0.81,0.08,0.13,0.15])
+initSpins = widgets.RadioButtons(axInitSpins, ('Random Noise', 'Uniform', 'Even Split'))
+
 
 axClearData = fig.add_axes([0.1,0.03,0.15,0.05])
 clearButton = widgets.Button(axClearData,'Clear Chart Data')
@@ -184,9 +214,8 @@ def clearData(val):
     frameCount = np.array([0])
 
 def resetSim(val):
-    global spins, j, beta
-    gridShape = (N,N)
-    spins = np.random.choice([-1,1], gridShape)
+    global spins, j, beta, N
+    spins = generate(generatorMethod,N)
     jSlider.set_val(initParams['j'])
     betaSlider.set_val(initParams['beta'])
     clearData(val)
@@ -197,16 +226,43 @@ def changeResolution(val):
     clearData(val)
     resetSim(val)
 
+def changeGenerator(val):
+    global generatorMethod
+    generatorMethod = initSpins.value_selected
+    resetSim(val)
+
+initSpins.on_clicked(changeGenerator)
 sizeButton.on_clicked(changeResolution)
 clearButton.on_clicked(clearData)
 simResetButton.on_clicked(resetSim)
 sumButton.on_clicked(buttonUpdater)
 
 # ============================================
-#   GridSize
+#   Labels and pretty graphics
 # ============================================
 
- 
+textProps = dict(boxstyle='square', facecolor='white', alpha=0.5)
+
+energyCalcModeText = axSumMethod.text(0.5,1.15,
+                                  'Energy Sum Method',
+                                  ha='center',
+                                  va='center',
+                                  bbox=textProps,
+                                  transform=axSumMethod.transAxes)
+
+gridSizeText = axSize.text(0.5,1.15,
+                                  'Grid Size (N x N)',
+                                  ha='center',
+                                  va='center',
+                                  bbox=textProps,
+                                  transform=axSize.transAxes)
+
+initSpinsText = axInitSpins.text(0.5,1.15,
+                                  'Initial Spin State',
+                                  ha='center',
+                                  va='center',
+                                  bbox=textProps,
+                                  transform=axInitSpins.transAxes)
 
 # Slider updater
 
@@ -222,6 +278,26 @@ jSlider.on_changed(sliderUpdate)
 speedSlider.on_changed(sliderUpdate)
 
 # ============================================
+#   Numba wrapper for the steps
+# ============================================
+
+@numba.njit(nogil=True)
+def naiveStep(spins,stepCount,beta,j,N):
+    for i in range(0,stepCount):
+            x = np.random.randint(0,N)
+            y = np.random.randint(0,N)
+            spinFlip(spins,x,y, beta,j,N)
+
+
+@numba.njit(nogil=True)
+def wrapStep(spins,stepCount,beta,j,N):
+    for i in range(0,stepCount):
+            x = np.random.randint(0,N)
+            y = np.random.randint(0,N)
+            spinFlipWrap(spins,x,y, beta,j,N)
+
+
+# ============================================
 #   Animation
 # ============================================
 
@@ -232,24 +308,21 @@ def frameStep(stepCount,sumMethod,N):
     global avgSpin, frameCount
 
     # Naive Sum method
-
+    
     if sumMethod == 'Naive':
-        for i in range(0,stepCount):
-            x = np.random.randint(0,N)
-            y = np.random.randint(0,N)
-            spinFlip(spins,x,y, beta,j,N)
+        naiveStep(spins,stepCount,beta,j,N)
     
     # Wrap around sum
 
+
     elif sumMethod == 'Wrap-Around':
-        for i in range(0,stepCount):
-            x = np.random.randint(0,N)
-            y = np.random.randint(0,N)
-            spinFlipWrap(spins,x,y, beta,j,N)
+        wrapStep(spins,stepCount,beta,j,N)
 
     spinTot = np.sum(spins)
-    avgSpin = np.append(avgSpin[:], (spinTot/(N**2)))
-    frameCount = np.append(frameCount[:], (frameCount[-1] + stepsPerFrame))
+    #avgSpin.append((spinTot/(N**2)))
+    avgSpin = np.append(avgSpin, spinTot/(N**2))
+    #frameCount.append((frameCount[-1] + stepsPerFrame))
+    frameCount = np.append(frameCount, frameCount[-1] + stepsPerFrame)
 
 spinData = ax.imshow(spins, cmap='bwr', label='Data')
 magData, = ax2.plot(frameCount,avgSpin)
@@ -258,7 +331,7 @@ magData, = ax2.plot(frameCount,avgSpin)
 def animate(frame):
     frameStep(stepsPerFrame, sumMethod,N)
     spinData.set_data(spins)
-    magData.set_data(frameCount*1e-6,avgSpin)
+    magData.set_data(np.array(frameCount)*1e-6,np.array(avgSpin))
     ax2.relim()
     ax2.autoscale_view()
     return [spinData,magData]
