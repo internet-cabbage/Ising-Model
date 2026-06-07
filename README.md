@@ -37,4 +37,6 @@ Currently this program only supports the Metropolis-Hastings algorithm.
 
 The Metropolis-Hastings algorithm is a stochastic algorithm which works by randomly selecting a site on the lattice, and examining the change in energy if that specific site had its spin flipped. If the flip results in the energy decreasing, then it will be accepted. For the case of increasing energy, it will be accepted with probability $e^{- \frac{\Delta E}{T} }$ given by the Boltzmann probability.
 
+Currently the Metropolis-Hastings algorithm is the only algorithm implemented for this program, but in the future I intend to implement the Wolff algorithm as well.
+
 
