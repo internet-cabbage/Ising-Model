@@ -3,7 +3,7 @@ import numba
 import matplotlib.pyplot as plt
 import matplotlib.widgets as widgets
 from matplotlib.animation import FuncAnimation
-import random
+
 
  
 
@@ -18,12 +18,14 @@ initParams = {'beta':1,
               'N':128,
               'j':1,
               'Generator Method': 'Random Noise',
-              'Steps Per Frame': 1024}
+              'Steps Per Frame': 1024,
+              'Magnetic Field': 0.0}
 
 N = initParams['N']
 beta = initParams['beta']
 j = initParams['j']
 generatorMethod = initParams['Generator Method']
+h = initParams['Magnetic Field']
 
 stepsPerFrame = initParams['Steps Per Frame']
 stepsPerRecording = initParams['Steps Per Frame']
@@ -59,45 +61,45 @@ spins = generate(generatorMethod,N)
 
 
 @numba.njit(nogil=True)
-def getEnergy(x,y,spins, spinCompare,j,N):
+def getEnergy(x,y,spins, spinCompare,j,N,h):
     spinCompare = - spinCompare * j
     # Boundary conditions
     #     # Central case
     if 0 < x < N-1 and 0 < y < N-1:
-        sum = spinCompare * (spins[x+1,y] + spins[x-1,y] + spins[x, y+1] + spins[x, y-1])
+        sum = (spins[x+1,y] + spins[x-1,y] + spins[x, y+1] + spins[x, y-1])
 
     # Edge cases
 
     elif 0 < x < N - 1 and y==0: # Top row
-        sum = spinCompare * (spins[x-1,0] + spins[x+1,0] + spins[x,1])
+        sum = (spins[x-1,0] + spins[x+1,0] + spins[x,1])
     elif 0 < x < N - 1 and y == N-1: # Bottom row
-        sum = spinCompare * (spins[x-1, N-1] + spins[x+1, N-1] + spins[x, N-2])
+        sum = (spins[x-1, N-1] + spins[x+1, N-1] + spins[x, N-2])
     elif x == 0 and 0 < y < N-1: # Left column
-        sum = spinCompare * (spins[0,y+1] + spins[0,y-1] + spins[1,y])
+        sum = (spins[0,y+1] + spins[0,y-1] + spins[1,y])
     elif x == N-1 and 0 < y < N-1: # Right column
-        sum = spinCompare * (spins[N-1,y+1] + spins[N-1, y-1] + spins[N-2,y])
+        sum = (spins[N-1,y+1] + spins[N-1, y-1] + spins[N-2,y])
     
     # corner cases
 
     elif x == 0 and y == 0: # Top left
-        sum = spinCompare * (spins[1,0] + spins[0,1])
+        sum = (spins[1,0] + spins[0,1])
     elif x == N-1 and y == 0: # Top right
-        sum = spinCompare * (spins[N-2,0] + spins[N-1, 1])
+        sum = (spins[N-2,0] + spins[N-1, 1])
     elif x == 0 and y == N-1: # Bottom left
-        sum = spinCompare * (spins[0,N-1] + spins[1, N-1])
+        sum = (spins[0,N-1] + spins[1, N-1])
     elif x == N-1 and y == N-1: # Bottom right
-        sum = spinCompare * (spins[N-2,N-1] + spins[N-1, N-2])
-    return sum
+        sum = (spins[N-2,N-1] + spins[N-1, N-2])
+    return spinCompare * (sum + h)
 
 
 @numba.njit(nogil=True)
-def spinFlip(spins,x,y,beta,j,N):
+def spinFlip(spins,x,y,beta,j,N,h):
 
     spinCurrent = spins[x,y]
     newSpin = -spinCurrent
 
-    currentEnergy = getEnergy(x,y,spins, spinCurrent,j,N)
-    flipEnergy = getEnergy(x,y,spins, newSpin,j,N)
+    currentEnergy = getEnergy(x,y,spins, spinCurrent,j,N,h)
+    flipEnergy = getEnergy(x,y,spins, newSpin,j,N,h)
     if flipEnergy < currentEnergy:
         spins[x,y] = newSpin
     else:
@@ -113,23 +115,23 @@ def spinFlip(spins,x,y,beta,j,N):
 # ============================================
 
 @numba.njit(nogil=True)
-def getEnergyWrap(x,y,spins, spinCompare,j,N):
+def getEnergyWrap(x,y,spins, spinCompare,j,N,h):
     s = - spinCompare * j
     # The pixel in question is compared against the pixels 1 (above it) 2 (to its right) 3 (below it) and 4 (to its left)
     # Vertically upwards is the direction of decreasing y
-    sum = s * (spins[x,(y - 1) % N] +
+    sum = (spins[x,(y - 1) % N] +
                spins[(x+1) % N,y] +
                spins[x, (y+1) % N] +
                spins[(x-1) % N, y])
-    return sum
+    return s * (sum + h)
 
 @numba.njit(nogil=True)
-def spinFlipWrap(spins,x,y,beta,j,N):
+def spinFlipWrap(spins,x,y,beta,j,N,h):
     spinCurrent = spins[x,y]
     newSpin = -spinCurrent
 
-    currentEnergy = getEnergyWrap(x,y,spins, spinCurrent,j,N)
-    flipEnergy = getEnergyWrap(x,y,spins, newSpin,j,N)
+    currentEnergy = getEnergyWrap(x,y,spins, spinCurrent,j,N,h)
+    flipEnergy = getEnergyWrap(x,y,spins, newSpin,j,N,h)
     if flipEnergy < currentEnergy:
         spins[x,y] = newSpin
     else:
@@ -165,13 +167,15 @@ ax2.axhline(0,color='black',ls='--',alpha=0.6)
 # ============================================
 
 
-axBeta = fig.add_axes([0.1,0.23,0.35,0.03])
-axJ = fig.add_axes([0.1,0.17,0.35,0.03])
-axSpeed = fig.add_axes([0.1,0.11,0.35,0.03])
+axBeta = fig.add_axes([0.1,0.26,0.35,0.03])
+axJ = fig.add_axes([0.1,0.205,0.35,0.03])
+axSpeed = fig.add_axes([0.1,0.15,0.35,0.03])
+axMag = fig.add_axes([0.1,0.095,0.35,0.03])
 betaSlider = widgets.Slider(axBeta, label='Beta Temp', valmin=0.01, valmax=5.00, valstep=0.01, valinit=beta)
 jSlider = widgets.Slider(axJ, label='J val', valmin=-2.0, valmax=2.0, valstep=0.1, valinit=j)
 speedSlider = widgets.Slider(axSpeed, label='Steps Per frame', valmin=1.0, valmax=20.0, valstep=1.0, valinit=np.log2(stepsPerFrame))
 speedSlider.valtext.set_text(str(stepsPerFrame))
+magSlider = widgets.Slider(axMag, label='Magnetic Field Strength', valmin=-1.0, valmax=1.0, valstep=0.01, valinit=h)
 
 # ============================================
 #  Slider Label positions
@@ -180,7 +184,7 @@ speedSlider.valtext.set_text(str(stepsPerFrame))
 
 boxProps = dict(boxstyle='round', facecolor='white', alpha=0.5)
 
-for slider in [betaSlider, jSlider, speedSlider]:
+for slider in [betaSlider, jSlider, speedSlider, magSlider]:
     slider.label.set_position((0.5,1.35))
     slider.label.set_horizontalalignment('center')
     slider.label.set_bbox(boxProps)
@@ -218,6 +222,7 @@ def resetSim(val):
     spins = generate(generatorMethod,N)
     jSlider.set_val(initParams['j'])
     betaSlider.set_val(initParams['beta'])
+    magSlider.set_val(initParams['Magnetic Field'])
     clearData(val)
 
 def changeResolution(val):
@@ -267,12 +272,14 @@ initSpinsText = axInitSpins.text(0.5,1.15,
 # Slider updater
 
 def sliderUpdate(val):
-    global beta, j, stepsPerFrame
+    global beta, j, stepsPerFrame,h
     beta = betaSlider.val
     j = jSlider.val
+    h = magSlider.val
     stepsPerFrame = int(2**speedSlider.val)
     speedSlider.valtext.set_text(str(stepsPerFrame))
 
+magSlider.on_changed(sliderUpdate)
 betaSlider.on_changed(sliderUpdate)
 jSlider.on_changed(sliderUpdate)
 speedSlider.on_changed(sliderUpdate)
@@ -282,19 +289,19 @@ speedSlider.on_changed(sliderUpdate)
 # ============================================
 
 @numba.njit(nogil=True)
-def naiveStep(spins,stepCount,beta,j,N):
+def naiveStep(spins,stepCount,beta,j,N,h):
     for i in range(0,stepCount):
             x = np.random.randint(0,N)
             y = np.random.randint(0,N)
-            spinFlip(spins,x,y, beta,j,N)
+            spinFlip(spins,x,y, beta,j,N,h)
 
 
 @numba.njit(nogil=True)
-def wrapStep(spins,stepCount,beta,j,N):
+def wrapStep(spins,stepCount,beta,j,N,h):
     for i in range(0,stepCount):
             x = np.random.randint(0,N)
             y = np.random.randint(0,N)
-            spinFlipWrap(spins,x,y, beta,j,N)
+            spinFlipWrap(spins,x,y, beta,j,N,h)
 
 
 # ============================================
@@ -305,18 +312,18 @@ def wrapStep(spins,stepCount,beta,j,N):
 
 
 def frameStep(stepCount,sumMethod,N):
-    global avgSpin, frameCount
+    global avgSpin, frameCount, h
 
     # Naive Sum method
     
     if sumMethod == 'Naive':
-        naiveStep(spins,stepCount,beta,j,N)
+        naiveStep(spins,stepCount,beta,j,N,h)
     
     # Wrap around sum
 
 
     elif sumMethod == 'Wrap-Around':
-        wrapStep(spins,stepCount,beta,j,N)
+        wrapStep(spins,stepCount,beta,j,N,h)
 
     spinTot = np.sum(spins)
     #avgSpin.append((spinTot/(N**2)))
