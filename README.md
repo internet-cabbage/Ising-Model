@@ -18,4 +18,12 @@ The Ising model is a simple model which makes several assumptions about the beha
 
 The Hamiltonian for the system is:
 
-$$ H = - j $$
+$$ H = - J_{ij} \sum_{\langle i j \rangle} \sigma_i \sigma_j + \mu \sum_i h_i \sigma_i $$
+
+The $\langle i j \rangle$ notation is used to represent nearest neighbours, so the first sum is therefore over all nearest neighbours. And in this first sum $J_{ij}$ is the interaction strength between adjacent atoms. The second sum takes into account the effects of an external magnetic field with a component (anti)parallel to the spin axis. Therefore this gives us $\mu$ as representing the magnetic moment of the atoms, and $h_j$ being the strength of the (component of the) external magnetic field at point $j$.
+
+If the interaction strength $J_{ij}$ is positive, then the interaction is ferromagnetic and adjacent atoms will attempt to align themselves as it's a more energetically favourable configuration. Whereas if the interaction strength is negative, the interaction is antiferromagnetic and atoms will tend to align in a checkerboard pattern.
+
+
+
+
