@@ -2,11 +2,44 @@
 
 An interactive 2D-Ising Model program written in Python.
 
+An interactive 2D Ising model simulation written in python, featuring real-time visualisation, data graphing, and parameters which are configurable during runtime.
+
+[INSERT GIF HERE]
+
+## Features
+
+  -  Configurable temperature, interaction strength (and sign), and external magnetic field strength and direction
+  -  Real-time visualisation of spin states of the atoms on the lattice
+  -  Implementation of the Metropolis-Hastings algorithm
+
+## Installation
+
+'''
+git clone https://github.com/internet-cabbage/Ising-Model.git
+cd ising-model
+pip install -r requirements.txt
+'''
+
+## Usage
+
+'''
+python 2DIsingModel.py
+'''
+
+Simulation parameters are configured during runtime using sliders and buttons present on the GUI.
+
+# Requirements
+
+  - Python 3.14
+  - NumPy
+  - Numba
+  - MatPlotLib
+
 ## Theory
 
-The Ising model is a way of mathematically behaving the phenomena of 'Ferromagnetism'. A material being ferromagnetic just means it's atoms have a non-zero magnetic moment such that it is capable of exihibiting bulk magnetic properties.
+The Ising model is a way of mathematically modelling the phenomena of 'Ferromagnetism'. A material being ferromagnetic just means it's atoms have a non-zero magnetic moment such that it is capable of exhibiting bulk magnetic properties.
 
-The actual reason for these atoms having a magnetic moment is due to the electrons in the atom orbitting the nucleus (such a motion of a charged particle is close to the ideal case), as well as the spin's of the electrons themselves. However the specifics of how these electron motions contributes to the magnetic moment is irrelevant to the actual model itself, which concerns bulk properties.
+The actual reason for these atoms having a magnetic moment is due to the electrons in the atom orbiting the nucleus (such a motion of a charged particle is close to the ideal case), as well as the spin's of the electrons themselves. However the specifics of how these electron motions contributes to the magnetic moment is irrelevant to the actual model itself, which concerns bulk properties.
 
 ## Background
 
@@ -29,14 +62,19 @@ When the model has no external magnetic field, it exhibits a phase transition be
 
 $$T_C = \frac{2J}{k (\ln{1 + \sqrt{2}})} \approx 2.269 \left( \frac{J}{k} \right)$$
 
-Above the Curie temperature $T_C$ the system will be in an unordered state, and below $T_C$ it will converge to a fully alligned state for $J>0$ and a fully anti-alligned state for $J<0$.
+Above the Curie temperature $T_C$ the system will be in an unordered state, and below $T_C$ it will converge to a fully aligned state for $J>0$ and a fully anti-aligned state for $J<0$.
 
 Currently this program only supports the Metropolis-Hastings algorithm.
+
 
 ### Metropolis-Hastings algorithm
 
 The Metropolis-Hastings algorithm is a stochastic algorithm which works by randomly selecting a site on the lattice, and examining the change in energy if that specific site had its spin flipped. If the flip results in the energy decreasing, then it will be accepted. For the case of increasing energy, it will be accepted with probability $e^{- \frac{\Delta E}{T} }$ given by the Boltzmann probability.
 
-Currently the Metropolis-Hastings algorithm is the only algorithm implemented for this program, but in the future I intend to implement the Wolff algorithm as well.
+## Planned Features
+
+  -  [ ] Wolff cluster algorithm
+  -  [ ] Ability to change what the graph displays (etc. energy)
+  -  [ ] Export of simulation data
 
 
