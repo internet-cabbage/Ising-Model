@@ -26,6 +26,7 @@ beta = initParams['beta']
 j = initParams['j']
 generatorMethod = initParams['Generator Method']
 h = initParams['Magnetic Field']
+minFramesPerRecording = 512
 
 stepsPerFrame = initParams['Steps Per Frame']
 stepsPerRecording = initParams['Steps Per Frame']
@@ -167,10 +168,10 @@ ax2.axhline(0,color='black',ls='--',alpha=0.6)
 # ============================================
 
 
-axBeta = fig.add_axes([0.1,0.26,0.35,0.03])
-axJ = fig.add_axes([0.1,0.205,0.35,0.03])
-axSpeed = fig.add_axes([0.1,0.15,0.35,0.03])
-axMag = fig.add_axes([0.1,0.095,0.35,0.03])
+axBeta = fig.add_axes([0.06,0.26,0.35,0.03])
+axJ = fig.add_axes([0.06,0.205,0.35,0.03])
+axSpeed = fig.add_axes([0.06,0.15,0.35,0.03])
+axMag = fig.add_axes([0.06,0.095,0.35,0.03])
 betaSlider = widgets.Slider(axBeta, label='Beta Temp', valmin=0.01, valmax=5.00, valstep=0.01, valinit=beta)
 jSlider = widgets.Slider(axJ, label='J val', valmin=-2.0, valmax=2.0, valstep=0.1, valinit=j)
 speedSlider = widgets.Slider(axSpeed, label='Steps Per frame', valmin=1.0, valmax=20.0, valstep=1.0, valinit=np.log2(stepsPerFrame))
@@ -202,9 +203,9 @@ axInitSpins = fig.add_axes([0.81,0.08,0.13,0.15])
 initSpins = widgets.RadioButtons(axInitSpins, ('Random Noise', 'Uniform', 'Even Split'))
 
 
-axClearData = fig.add_axes([0.1,0.03,0.15,0.05])
+axClearData = fig.add_axes([0.06,0.03,0.15,0.05])
 clearButton = widgets.Button(axClearData,'Clear Chart Data')
-axResetSim = fig.add_axes([0.30,0.03,0.15,0.05])
+axResetSim = fig.add_axes([0.26,0.03,0.15,0.05])
 simResetButton = widgets.Button(axResetSim,'Reset Simulation')
 
 def buttonUpdater(val):
@@ -290,18 +291,38 @@ speedSlider.on_changed(sliderUpdate)
 
 @numba.njit(nogil=True)
 def naiveStep(spins,stepCount,beta,j,N,h):
-    for i in range(0,stepCount):
+    spinData = np.zeros(stepCount//minFramesPerRecording)
+    frameData = np.zeros((stepCount//minFramesPerRecording)+1)
+    index = 0
+    for i in range(0,stepCount+1):
             x = np.random.randint(0,N)
             y = np.random.randint(0,N)
             spinFlip(spins,x,y, beta,j,N,h)
+            if i % minFramesPerRecording == 0:
+                spinData[index] = (np.sum(spins) / (N**2))
+                frameData[index] = i
+                index+=1
+    return spinData, frameData[1:]
 
 
 @numba.njit(nogil=True)
 def wrapStep(spins,stepCount,beta,j,N,h):
-    for i in range(0,stepCount):
+    # To record the framedata I create an array of the average spins, which will be as long as the amount of returned values is
+    # For the frame data, frame number i == 0 will always be recorded, but this means that the graph may have several spin averages for the same frame number
+    # So i instead make the frame data array 1 index larger, and record the last value instead, and just cut off the first one
+    spinData = np.zeros(stepCount//minFramesPerRecording)
+    frameData = np.zeros((stepCount//minFramesPerRecording) + 1)
+    index = 0
+    for i in range(0,stepCount+1):
             x = np.random.randint(0,N)
             y = np.random.randint(0,N)
             spinFlipWrap(spins,x,y, beta,j,N,h)
+            if i % minFramesPerRecording == 0:
+                spinData[index] = (np.sum(spins) / (N**2))
+                frameData[index] = i
+                index+=1
+    # [1:] means it returns all values except the first one
+    return spinData, frameData[1:]
 
 
 # ============================================
@@ -317,24 +338,33 @@ def frameStep(stepCount,sumMethod,N):
     # Naive Sum method
     
     if sumMethod == 'Naive':
-        naiveStep(spins,stepCount,beta,j,N,h)
+        spinData, frameData = naiveStep(spins,stepCount,beta,j,N,h)
     
     # Wrap around sum
 
 
     elif sumMethod == 'Wrap-Around':
-        wrapStep(spins,stepCount,beta,j,N,h)
+        spinData, frameData = wrapStep(spins,stepCount,beta,j,N,h)
 
-    spinTot = np.sum(spins)
-    #avgSpin.append((spinTot/(N**2)))
-    avgSpin = np.append(avgSpin, spinTot/(N**2))
-    #frameCount.append((frameCount[-1] + stepsPerFrame))
-    frameCount = np.append(frameCount, frameCount[-1] + stepsPerFrame)
+    
+    #spinTot = np.sum(spins)
+    #avgSpin = np.append(avgSpin, spinTot/(N**2))
+
+    if minFramesPerRecording >= stepCount:
+        avgSpin = np.append(avgSpin, np.sum(spins)/(N**2))
+        frameCount = np.append(frameCount, frameCount[-1] + stepsPerFrame)
+    else:
+        avgSpin = np.append(avgSpin, spinData)
+        frameCount = np.append(frameCount, (frameCount[-1] + frameData))
+# 0, 512, 1024, 1536, 2048
+    #frameCount = np.append(frameCount, frameCount[-1] + stepsPerFrame)
 
 spinData = ax.imshow(spins, cmap='bwr', label='Data')
 magData, = ax2.plot(frameCount,avgSpin)
 
-
+testArr = np.array([0,1,2,3])
+print(testArr)
+print(testArr + 3)
 def animate(frame):
     frameStep(stepsPerFrame, sumMethod,N)
     spinData.set_data(spins)
