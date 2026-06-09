@@ -1,6 +1,6 @@
 # Ising-Model
 
-An interactive 2D-Ising Model program written in Python.
+
 
 An interactive 2D Ising model simulation written in python, featuring real-time visualisation, data graphing, and parameters which are configurable during runtime.
 
@@ -14,23 +14,23 @@ An interactive 2D Ising model simulation written in python, featuring real-time 
 
 ## Installation
 
-'''
+```
 git clone https://github.com/internet-cabbage/Ising-Model.git
 cd ising-model
 pip install -r requirements.txt
-'''
+```
 
 ## Usage
 
-'''
+```
 python 2DIsingModel.py
-'''
+```
 
 Simulation parameters are configured during runtime using sliders and buttons present on the GUI.
 
 # Requirements
 
-  - Python 3.14
+  - Python 3.10+
   - NumPy
   - Numba
   - MatPlotLib
